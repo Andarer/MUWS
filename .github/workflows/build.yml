@@ -31,54 +31,82 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Create project
+      - name: Create project structure
         run: |
-          mkdir project
-          cd project
+          mkdir -p project/app/src/main/{assets/app,java/com/muws,res/layout}
+          cp -r app/* project/app/src/main/assets/app/ 2>/dev/null || true
 
-          mkdir -p app/src/main/assets/app
-          mkdir -p app/src/main/java/com/muws
-          mkdir -p app/src/main/res/layout
-
-          cp -r ../app/* app/src/main/assets/app/
-
-          cat <<EOF > app/src/main/AndroidManifest.xml
+      - name: Create AndroidManifest.xml
+        run: |
+          cat > project/app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
               package="com.muws">
-              <application android:label="MUWS">
-                  <activity android:name=".MainActivity">
+              
+              <uses-permission android:name="android.permission.INTERNET" />
+              
+              <application
+                  android:label="@string/app_name"
+                  android:icon="@mipmap/ic_launcher">
+                  
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                      
                       <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
               </application>
           </manifest>
           EOF
 
-          cat <<EOF > app/src/main/java/com/muws/MainActivity.java
+      - name: Create MainActivity.java
+        run: |
+          cat > project/app/src/main/java/com/muws/MainActivity.java <<'EOF'
           package com.muws;
 
           import android.app.Activity;
           import android.os.Bundle;
           import android.webkit.WebView;
+          import android.webkit.WebSettings;
 
           public class MainActivity extends Activity {
+              private WebView webView;
+
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
 
-                  WebView webView = new WebView(this);
-                  webView.getSettings().setJavaScriptEnabled(true);
-                  webView.getSettings().setDomStorageEnabled(true);
-                  webView.loadUrl("file:///android_asset/app/index.html");
+                  webView = new WebView(this);
+                  WebSettings settings = webView.getSettings();
+                  
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
+                  settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                  settings.setUserAgentString("MUWS/1.0");
 
+                  webView.loadUrl("file:///android_asset/app/index.html");
                   setContentView(webView);
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
               }
           }
           EOF
 
-          cat <<EOF > build.gradle
+      - name: Create root build.gradle
+        run: |
+          cat > project/build.gradle <<'EOF'
           buildscript {
               repositories {
                   google()
@@ -88,6 +116,7 @@ jobs:
                   classpath 'com.android.tools.build:gradle:8.2.0'
               }
           }
+
           allprojects {
               repositories {
                   google()
@@ -96,9 +125,13 @@ jobs:
           }
           EOF
 
-          echo "include ':app'" > settings.gradle
+      - name: Create settings.gradle
+        run: |
+          echo "include ':app'" > project/settings.gradle
 
-          cat <<EOF > app/build.gradle
+      - name: Create app/build.gradle
+        run: |
+          cat > project/app/build.gradle <<'EOF'
           plugins {
               id 'com.android.application'
           }
@@ -111,44 +144,79 @@ jobs:
                   applicationId "com.muws"
                   minSdk 21
                   targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  debug {
+                      debuggable true
+                  }
+                  release {
+                      minifyEnabled true
+                      shrinkResources true
+                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_11
+                  targetCompatibility JavaVersion.VERSION_11
               }
           }
 
-          dependencies {}
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'androidx.webkit:webkit:1.7.0'
+          }
           EOF
 
-          # Скачиваем Gradle с проверкой и повторами
+      - name: Download Gradle
+        run: |
+          cd project
           MAX_ATTEMPTS=3
           ATTEMPT=1
-          until [ $ATTEMPT -gt $MAX_ATTEMPTS ]; do
-            echo "Скачивание Gradle (попытка $ATTEMPT/$MAX_ATTEMPTS)..."
-            curl -L --max-time 300 --retry 2 https://services.gradle.org/distributions/gradle-8.2-bin.zip -o gradle.zip
-            
-            if unzip -t gradle.zip > /dev/null 2>&1; then
-              echo "ZIP файл Gradle проверен успешно"
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Downloading Gradle (attempt $ATTEMPT/$MAX_ATTEMPTS)..."
+            if curl -L --max-time 300 --retry 2 \
+              https://services.gradle.org/distributions/gradle-8.2-bin.zip \
+              -o gradle.zip && \
+              unzip -t gradle.zip > /dev/null 2>&1; then
+              echo "Gradle downloaded and verified successfully"
+              unzip -q gradle.zip
+              rm -f gradle.zip
+              mv gradle-8.2 gradle
               break
             else
-              echo "ZIP файл испорчен, повторная попытка..."
+              echo "Failed attempt $ATTEMPT, retrying..."
               rm -f gradle.zip
               ATTEMPT=$((ATTEMPT + 1))
             fi
           done
           
           if [ $ATTEMPT -gt $MAX_ATTEMPTS ]; then
-            echo "Не удалось скачать Gradle по��ле $MAX_ATTEMPTS попыток"
+            echo "Failed to download Gradle after $MAX_ATTEMPTS attempts"
             exit 1
           fi
-          
-          unzip -q gradle.zip
-          mv gradle-8.2 gradle
 
-      - name: Build APK
+      - name: Build APK (Debug)
         run: |
           cd project
-          ./gradle/bin/gradle assembleDebug
+          chmod +x gradle/bin/gradle
+          ./gradle/bin/gradle assembleDebug --info
 
-      - name: Upload APK
+      - name: Upload APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: muws-apk
+          name: MUWS-Debug-APK
           path: project/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Upload Build Logs on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: project/app/build/outputs/
