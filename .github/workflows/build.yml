@@ -12,16 +12,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK
+      - name: Clone template
+        run: git clone https://github.com/ionic-team/ionic-native-runner-template android-template
+
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Clone working WebView template
-        run: git clone https://github.com/ionic-team/capacitor-android android-template
-
-      - name: Prepare assets
+      - name: Copy your app
         run: |
           mkdir -p android-template/app/src/main/assets/app
           cp -r app/* android-template/app/src/main/assets/app/
