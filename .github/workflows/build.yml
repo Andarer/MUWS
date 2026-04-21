@@ -12,7 +12,7 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup JDK 17
@@ -21,7 +21,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK (minimal)
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-34'
@@ -45,19 +45,21 @@ jobs:
             echo "<html><body><h1>MUWS App</h1><p>Place your web files in 'web-content/' folder.</p></body></html>" > project/app/src/main/assets/app/index.html
           fi
 
-      - name: Install ImageMagick and generate resource files
+      - name: Install ImageMagick and generate resources
         run: |
-          sudo apt-get update
+          sudo apt-get update -qq
           sudo apt-get install -y imagemagick
           cd project
 
+          # strings.xml
           cat > app/src/main/res/values/strings.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <string name="app_name">MUWS</string>
+              <string name="app_name">MetaMindMap Pro</string>
           </resources>
           EOF
 
+          # colors.xml
           cat > app/src/main/res/values/colors.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
@@ -66,15 +68,20 @@ jobs:
           </resources>
           EOF
 
-          convert -size 72x72 xc:#3F51B5 app/src/main/res/mipmap-hdpi/ic_launcher.png
-          convert -size 72x72 xc:#3F51B5 app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+          # Генерация иконки приложения (синий квадрат с мозгом 🧠)
+          convert -size 72x72 xc:#007AFF \
+            -gravity center -pointsize 40 -fill white -annotate +0+0 "🧠" \
+            app/src/main/res/mipmap-hdpi/ic_launcher.png
+          convert -size 72x72 xc:#007AFF \
+            -gravity center -pointsize 40 -fill white -annotate +0+0 "🧠" \
+            app/src/main/res/mipmap-hdpi/ic_launcher_round.png
 
       - name: Create AndroidManifest.xml
         run: |
           cat > project/app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.muws">
+              package="com.muws.metamindmap">
 
               <uses-permission android:name="android.permission.INTERNET" />
 
@@ -82,13 +89,15 @@ jobs:
                   android:label="@string/app_name"
                   android:icon="@mipmap/ic_launcher"
                   android:roundIcon="@mipmap/ic_launcher_round"
-                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+                  android:hardwareAccelerated="true"
+                  android:usesCleartextTraffic="true">
 
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
                       android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
-                      android:configChanges="orientation|screenSize|keyboardHidden">
+                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -113,6 +122,8 @@ jobs:
           import android.webkit.WebChromeClient;
           import android.webkit.ConsoleMessage;
           import android.util.Log;
+          import android.view.View;
+          import android.view.WindowManager;
 
           public class MainActivity extends Activity {
               private WebView webView;
@@ -121,6 +132,20 @@ jobs:
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
 
+                  // Полноэкранный режим с вырезами
+                  getWindow().setFlags(
+                      WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                      WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                  );
+                  getWindow().getDecorView().setSystemUiVisibility(
+                      View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                      View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+                      View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                      View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                      View.SYSTEM_UI_FLAG_FULLSCREEN |
+                      View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                  );
+
                   webView = new WebView(this);
                   WebSettings settings = webView.getSettings();
 
@@ -128,7 +153,18 @@ jobs:
                   settings.setDomStorageEnabled(true);
                   settings.setDatabaseEnabled(true);
                   settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-                  settings.setUserAgentString("MUWS/1.0");
+                  settings.setUserAgentString("MetaMindMapPro/3.0 (Android)");
+                  settings.setAllowFileAccess(true);
+                  settings.setAllowContentAccess(true);
+                  settings.setLoadWithOverviewMode(true);
+                  settings.setUseWideViewPort(true);
+                  settings.setSupportZoom(false);
+                  settings.setBuiltInZoomControls(false);
+                  settings.setDisplayZoomControls(false);
+
+                  // Для корректной работы PWA-функций (manifest, service worker игнорируются)
+                  settings.setAppCacheEnabled(true);
+                  settings.setAppCachePath(getCacheDir().getAbsolutePath());
 
                   webView.setWebViewClient(new WebViewClient() {
                       @Override
@@ -146,7 +182,7 @@ jobs:
                   webView.setWebChromeClient(new WebChromeClient() {
                       @Override
                       public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
-                          Log.d("MUWS", consoleMessage.message() + " -- From line " +
+                          Log.d("MetaMindMap", consoleMessage.message() + " -- From line " +
                                   consoleMessage.lineNumber() + " of " + consoleMessage.sourceId());
                           return true;
                       }
@@ -171,7 +207,7 @@ jobs:
         run: |
           cd project
 
-          echo "rootProject.name = 'MUWS'" > settings.gradle
+          echo "rootProject.name = 'MetaMindMap'" > settings.gradle
           echo "include ':app'" >> settings.gradle
 
           cat > build.gradle <<'EOF'
@@ -186,15 +222,15 @@ jobs:
           }
 
           android {
-              namespace 'com.muws'
+              namespace 'com.muws.metamindmap'
               compileSdk 34
 
               defaultConfig {
-                  applicationId "com.muws"
+                  applicationId "com.muws.metamindmap"
                   minSdk 21
                   targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
+                  versionCode 3
+                  versionName "3.0"
               }
 
               buildTypes {
@@ -231,14 +267,14 @@ jobs:
           cd project
           ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MUWS-Debug-APK
+          name: MetaMindMap-Pro-Debug
           path: project/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Upload logs (if failure)
+      - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
