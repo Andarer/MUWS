@@ -9,26 +9,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Clone template
-        run: git clone https://github.com/ionic-team/ionic-native-runner-template android-template
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          node-version: 18
 
-      - name: Copy your app
+      - name: Install Capacitor
         run: |
-          mkdir -p android-template/app/src/main/assets/app
-          cp -r app/* android-template/app/src/main/assets/app/
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Init Capacitor
+        run: |
+          npx cap init MUWS com.muws.app
+
+      - name: Copy web app
+        run: |
+          mkdir -p www
+          cp -r app/* www/
+
+      - name: Add Android
+        run: npx cap add android
+
+      - name: Sync
+        run: npx cap sync
 
       - name: Build APK
         run: |
-          cd android-template
+          cd android
           chmod +x gradlew
           ./gradlew assembleDebug
 
@@ -36,4 +46,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: muws-apk
-          path: android-template/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
