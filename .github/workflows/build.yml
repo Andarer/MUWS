@@ -9,19 +9,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Clone Android WebView Template
-        run: git clone https://github.com/android/views-widgets-samples android-template
+      - name: Clone minimal WebView template
+        run: git clone https://github.com/hybridgroup/android-webview-template android-template
 
-      - name: Prepare App Folder
+      - name: Copy app files
         run: |
-          mkdir -p android-template/WebView/app/src/main/assets/app
-          cp -r app/* android-template/WebView/app/src/main/assets/app/
+          mkdir -p android-template/app/src/main/assets/app
+          cp -r app/* android-template/app/src/main/assets/app/
 
       - name: Build APK
         run: |
-          cd android-template/WebView
+          cd android-template
           chmod +x gradlew
           ./gradlew assembleDebug
 
@@ -29,4 +30,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: muws-apk
-          path: android-template/WebView/app/build/outputs/apk/debug/app-debug.apk
+          path: android-template/app/build/outputs/apk/debug/app-debug.apk
