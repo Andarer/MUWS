@@ -1,0 +1,32 @@
+name: Build MUWS APK
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Clone Android WebView Template
+        run: git clone https://github.com/android/views-widgets-samples android-template
+
+      - name: Prepare App Folder
+        run: |
+          mkdir -p android-template/WebView/app/src/main/assets/app
+          cp -r app/* android-template/WebView/app/src/main/assets/app/
+
+      - name: Build APK
+        run: |
+          cd android-template/WebView
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: muws-apk
+          path: android-template/WebView/app/build/outputs/apk/debug/app-debug.apk
