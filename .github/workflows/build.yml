@@ -205,18 +205,32 @@ jobs:
         run: |
           cd project
 
-          echo "rootProject.name = 'MetaMindMap'" > settings.gradle
-          echo "include ':app'" >> settings.gradle
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'MetaMindMap'
+          include ':app'
+          EOF
 
           cat > build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application' version '8.2.2' apply false
-          }
+          // Пустой корневой файл, плагины применяются в модулях
           EOF
 
           cat > app/build.gradle <<'EOF'
           plugins {
-              id 'com.android.application'
+              id 'com.android.application' version '8.2.2'
           }
 
           android {
@@ -258,13 +272,10 @@ jobs:
         with:
           gradle-version: 8.5
 
-      - name: Generate Gradle Wrapper (safe)
+      - name: Generate Gradle Wrapper
         run: |
           cd project
-          # Временно прячем build.gradle, чтобы системный Gradle не читал плагин
-          mv build.gradle build.gradle.bak
           gradle wrapper --gradle-version 8.5
-          mv build.gradle.bak build.gradle
 
       - name: Build debug APK
         run: |
