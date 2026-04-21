@@ -117,7 +117,28 @@ jobs:
           dependencies {}
           EOF
 
-          curl -s https://services.gradle.org/distributions/gradle-8.2-bin.zip -o gradle.zip
+          # Скачиваем Gradle с проверкой и повторами
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          until [ $ATTEMPT -gt $MAX_ATTEMPTS ]; do
+            echo "Скачивание Gradle (попытка $ATTEMPT/$MAX_ATTEMPTS)..."
+            curl -L --max-time 300 --retry 2 https://services.gradle.org/distributions/gradle-8.2-bin.zip -o gradle.zip
+            
+            if unzip -t gradle.zip > /dev/null 2>&1; then
+              echo "ZIP файл Gradle проверен успешно"
+              break
+            else
+              echo "ZIP файл испорчен, повторная попытка..."
+              rm -f gradle.zip
+              ATTEMPT=$((ATTEMPT + 1))
+            fi
+          done
+          
+          if [ $ATTEMPT -gt $MAX_ATTEMPTS ]; then
+            echo "Не удалось скачать Gradle по��ле $MAX_ATTEMPTS попыток"
+            exit 1
+          fi
+          
           unzip -q gradle.zip
           mv gradle-8.2 gradle
 
