@@ -68,7 +68,7 @@ jobs:
           </resources>
           EOF
 
-          # Генерация иконки приложения (синий квадрат с мозгом 🧠)
+          # Иконка с мозгом 🧠
           convert -size 72x72 xc:#007AFF \
             -gravity center -pointsize 40 -fill white -annotate +0+0 "🧠" \
             app/src/main/res/mipmap-hdpi/ic_launcher.png
@@ -161,8 +161,6 @@ jobs:
                   settings.setSupportZoom(false);
                   settings.setBuiltInZoomControls(false);
                   settings.setDisplayZoomControls(false);
-
-                  // Для корректной работы PWA-функций (manifest, service worker игнорируются)
                   settings.setAppCacheEnabled(true);
                   settings.setAppCachePath(getCacheDir().getAbsolutePath());
 
@@ -255,12 +253,18 @@ jobs:
           }
           EOF
 
-      - name: Generate Gradle Wrapper
+      - name: Setup Gradle 8.5
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.5
+
+      - name: Generate Gradle Wrapper (safe)
         run: |
           cd project
+          # Временно прячем build.gradle, чтобы системный Gradle не читал плагин
+          mv build.gradle build.gradle.bak
           gradle wrapper --gradle-version 8.5
-        env:
-          GRADLE_VERSION: 8.5
+          mv build.gradle.bak build.gradle
 
       - name: Build debug APK
         run: |
