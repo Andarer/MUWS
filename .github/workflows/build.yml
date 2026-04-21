@@ -45,8 +45,10 @@ jobs:
             echo "<html><body><h1>MUWS App</h1><p>Place your web files in 'web-content/' folder.</p></body></html>" > project/app/src/main/assets/app/index.html
           fi
 
-      - name: Generate required resource files
+      - name: Install ImageMagick and generate resource files
         run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
           cd project
 
           cat > app/src/main/res/values/strings.xml <<'EOF'
@@ -221,7 +223,6 @@ jobs:
         run: |
           cd project
           gradle wrapper --gradle-version 8.5
-        # Если команда gradle не найдена, используем fallback:
         env:
           GRADLE_VERSION: 8.5
 
