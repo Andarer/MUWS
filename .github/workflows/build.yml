@@ -25,11 +25,8 @@ jobs:
 
       - name: Create Android project structure
         run: |
-          # Корневая папка Android-проекта
           mkdir -p project
           cd project
-
-          # Создаём модуль app с нужными подпапками
           mkdir -p app/src/main/java/com/muws
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/mipmap-hdpi
@@ -37,7 +34,6 @@ jobs:
 
       - name: Copy web content to assets
         run: |
-          # Предполагаем, что ваши HTML/JS/CSS лежат в корне репозитория в папке web-content/
           if [ -d "web-content" ]; then
             cp -r web-content/* project/app/src/main/assets/app/
           else
@@ -58,7 +54,7 @@ jobs:
           </resources>
           EOF
 
-          # colors.xml (может понадобиться)
+          # colors.xml
           cat > app/src/main/res/values/colors.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
@@ -67,8 +63,7 @@ jobs:
           </resources>
           EOF
 
-          # Заглушка для иконки (одноцветный PNG, чтобы пройти сборку)
-          # Генерируем простой 72x72 PNG через ImageMagick (предустановлен в ubuntu-latest)
+          # Иконка-заглушка
           convert -size 72x72 xc:#3F51B5 app/src/main/res/mipmap-hdpi/ic_launcher.png
           convert -size 72x72 xc:#3F51B5 app/src/main/res/mipmap-hdpi/ic_launcher_round.png
 
@@ -90,6 +85,7 @@ jobs:
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
+                      android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
                       android:configChanges="orientation|screenSize|keyboardHidden">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -110,6 +106,11 @@ jobs:
           import android.webkit.WebView;
           import android.webkit.WebSettings;
           import android.webkit.WebViewClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebResourceError;
+          import android.webkit.WebChromeClient;
+          import android.webkit.ConsoleMessage;
+          import android.util.Log;
 
           public class MainActivity extends Activity {
               private WebView webView;
@@ -127,8 +128,31 @@ jobs:
                   settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
                   settings.setUserAgentString("MUWS/1.0");
 
-                  // Оставляем ссылки внутри WebView
-                  webView.setWebViewClient(new WebViewClient());
+                  // Настройка WebViewClient для обработки ссылок внутри приложения
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                          // Загружаем все URL внутри WebView
+                          view.loadUrl(request.getUrl().toString());
+                          return true;
+                      }
+
+                      @Override
+                      public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                          // Простая обработка ошибок (можно добавить свою страницу)
+                          Log.e("MUWS", "WebView error: " + error.getDescription());
+                      }
+                  });
+
+                  // WebChromeClient для вывода консоли JS в logcat
+                  webView.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
+                          Log.d("MUWS", consoleMessage.message() + " -- From line " +
+                                  consoleMessage.lineNumber() + " of " + consoleMessage.sourceId());
+                          return true;
+                      }
+                  });
 
                   webView.loadUrl("file:///android_asset/app/index.html");
                   setContentView(webView);
@@ -149,18 +173,15 @@ jobs:
         run: |
           cd project
 
-          # settings.gradle
           echo "rootProject.name = 'MUWS'" > settings.gradle
           echo "include ':app'" >> settings.gradle
 
-          # Корневой build.gradle
           cat > build.gradle <<'EOF'
           plugins {
               id 'com.android.application' version '8.2.2' apply false
           }
           EOF
 
-          # app/build.gradle
           cat > app/build.gradle <<'EOF'
           plugins {
               id 'com.android.application'
