@@ -8,6 +8,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,7 +49,6 @@ jobs:
         run: |
           cd project
 
-          # strings.xml
           cat > app/src/main/res/values/strings.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
@@ -54,7 +56,6 @@ jobs:
           </resources>
           EOF
 
-          # colors.xml
           cat > app/src/main/res/values/colors.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
@@ -63,7 +64,6 @@ jobs:
           </resources>
           EOF
 
-          # Иконка-заглушка
           convert -size 72x72 xc:#3F51B5 app/src/main/res/mipmap-hdpi/ic_launcher.png
           convert -size 72x72 xc:#3F51B5 app/src/main/res/mipmap-hdpi/ic_launcher_round.png
 
@@ -128,23 +128,19 @@ jobs:
                   settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
                   settings.setUserAgentString("MUWS/1.0");
 
-                  // Настройка WebViewClient для обработки ссылок внутри приложения
                   webView.setWebViewClient(new WebViewClient() {
                       @Override
                       public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                          // Загружаем все URL внутри WebView
                           view.loadUrl(request.getUrl().toString());
                           return true;
                       }
 
                       @Override
                       public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                          // Простая обработка ошибок (можно добавить свою страницу)
                           Log.e("MUWS", "WebView error: " + error.getDescription());
                       }
                   });
 
-                  // WebChromeClient для вывода консоли JS в logcat
                   webView.setWebChromeClient(new WebChromeClient() {
                       @Override
                       public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
@@ -221,15 +217,18 @@ jobs:
           }
           EOF
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: 8.5
+      - name: Generate Gradle Wrapper
+        run: |
+          cd project
+          gradle wrapper --gradle-version 8.5
+        # Если команда gradle не найдена, используем fallback:
+        env:
+          GRADLE_VERSION: 8.5
 
       - name: Build debug APK
         run: |
           cd project
-          gradle assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
