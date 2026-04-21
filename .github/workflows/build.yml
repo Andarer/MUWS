@@ -12,112 +12,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create Android project
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Clone working WebView template
+        run: git clone https://github.com/ionic-team/capacitor-android android-template
+
+      - name: Prepare assets
         run: |
-          mkdir project
-          cd project
-
-          # создаём минимальный gradle проект
-          mkdir -p app/src/main/assets/app
-          mkdir -p app/src/main/java/com/muws
-          mkdir -p app/src/main/res/layout
-
-          # копируем твой HTML
-          cp -r ../app/* app/src/main/assets/app/
-
-          # AndroidManifest
-          cat <<EOF > app/src/main/AndroidManifest.xml
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.muws">
-              <application android:label="MUWS">
-                  <activity android:name=".MainActivity">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          # MainActivity
-          cat <<EOF > app/src/main/java/com/muws/MainActivity.java
-          package com.muws;
-
-          import android.app.Activity;
-          import android.os.Bundle;
-          import android.webkit.WebView;
-
-          public class MainActivity extends Activity {
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-
-                  WebView webView = new WebView(this);
-                  webView.getSettings().setJavaScriptEnabled(true);
-                  webView.getSettings().setDomStorageEnabled(true);
-
-                  webView.loadUrl("file:///android_asset/app/index.html");
-
-                  setContentView(webView);
-              }
-          }
-          EOF
-
-          # build.gradle (project)
-          cat <<EOF > build.gradle
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.2.0'
-              }
-          }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          EOF
-
-          # settings.gradle
-          echo "include ':app'" > settings.gradle
-
-          # build.gradle (app)
-          cat <<EOF > app/build.gradle
-          plugins {
-              id 'com.android.application'
-          }
-
-          android {
-              namespace 'com.muws'
-              compileSdk 34
-
-              defaultConfig {
-                  applicationId "com.muws"
-                  minSdk 21
-                  targetSdk 34
-              }
-          }
-
-          dependencies {}
-          EOF
-
-          # gradlew
-          curl -s https://services.gradle.org/distributions/gradle-8.2-bin.zip -o gradle.zip
-          unzip -q gradle.zip
-          mv gradle-8.2 gradle
+          mkdir -p android-template/app/src/main/assets/app
+          cp -r app/* android-template/app/src/main/assets/app/
 
       - name: Build APK
         run: |
-          cd project
-          ./gradle/bin/gradle assembleDebug
+          cd android-template
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: muws-apk
-          path: project/app/build/outputs/apk/debug/app-debug.apk
+          path: android-template/app/build/outputs/apk/debug/app-debug.apk
